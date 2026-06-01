@@ -1,9 +1,3 @@
-This refined `README.md` provides explicit documentation for the database design, REST API endpoints, design pattern diagrams (ASCII/Mermaid format), and detailed analytical sections on architectural trade-offs and scalability. 
-
-You can copy and paste this directly into your project's root directory.
-
----
-
 # Warehouse Inventory Reservation System
 
 A production-ready Spring Boot microservice designed to process concurrent warehouse inventory reservations. The system enforces relational integrity and prevents product overselling through database-level isolation under parallel workloads.
