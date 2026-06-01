@@ -28,7 +28,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ReservationConcurrencyIntegrationTest {
 
     static {
-        // Force the underlying docker-java client to negotiate using API version 1.43
         System.setProperty("docker.api.version", "1.43");
     }
     
@@ -40,6 +39,9 @@ class ReservationConcurrencyIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.liquibase.enabled", () -> "true");
+        // Verify this path is correct for your project structure
+        registry.add("spring.liquibase.change-log", () -> "file:database/changelog/db.changelog-master.yaml");
     }
 
     @Autowired
@@ -50,18 +52,14 @@ class ReservationConcurrencyIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        // Reset stocks for testing
-        Inventory inv = inventoryRepository.findById("C300").orElseThrow();
-        Inventory resetInv = new Inventory("C300", 10, 10, 0);
-        inventoryRepository.save(resetInv);
+        // Clear previous state and re-initialize test data
+        inventoryRepository.deleteAllInBatch(); 
+        Inventory inv = new Inventory("C300", 10, 10, 0);
+        inventoryRepository.save(inv);
     }
 
     @Test
-    void testConcurrentReservations_PreventOverselling() throws InterruptedException, ExecutionException {
-        // Given: SKU C300 has total 10 units available.
-        // Action: Two simultaneous transactions try to lock and reserve 6 units each.
-        // Expectation: Only one succeeds. The other must fail with stock validation mismatch.
-
+    void testConcurrentReservations_PreventOverselling() throws InterruptedException, ExecutionException, TimeoutException {
         ReservationRequest req1 = new ReservationRequest();
         req1.setOrderId("ORD-A");
         ItemRequest item1 = new ItemRequest();
@@ -80,42 +78,51 @@ class ReservationConcurrencyIntegrationTest {
         CyclicBarrier barrier = new CyclicBarrier(2);
 
         Callable<ResponseEntity<ApiResponse>> task1 = () -> {
-            barrier.await();
+            // Prevent indefinite blocking if one thread fails early
+            barrier.await(10, TimeUnit.SECONDS);
             return restTemplate.postForEntity("/api/v1/reservations", req1, ApiResponse.class);
         };
 
         Callable<ResponseEntity<ApiResponse>> task2 = () -> {
-            barrier.await();
+            barrier.await(10, TimeUnit.SECONDS);
             return restTemplate.postForEntity("/api/v1/reservations", req2, ApiResponse.class);
         };
 
-        Future<ResponseEntity<ApiResponse>> future1 = executor.submit(task1);
-        Future<ResponseEntity<ApiResponse>> future2 = executor.submit(task2);
+        try {
+            Future<ResponseEntity<ApiResponse>> future1 = executor.submit(task1);
+            Future<ResponseEntity<ApiResponse>> future2 = executor.submit(task2);
 
-        ResponseEntity<ApiResponse> res1 = future1.get();
-        ResponseEntity<ApiResponse> res2 = future2.get();
+            // Fetch results with a timeout to keep the test from hanging if server threads lock up
+            ResponseEntity<ApiResponse> res1 = future1.get(15, TimeUnit.SECONDS);
+            ResponseEntity<ApiResponse> res2 = future2.get(15, TimeUnit.SECONDS);
 
-        executor.shutdown();
+            AtomicInteger successCount = new AtomicInteger();
+            AtomicInteger failureCount = new AtomicInteger();
 
-        AtomicInteger successCount = new AtomicInteger();
-        AtomicInteger failureCount = new AtomicInteger();
+            checkResponse(res1, successCount, failureCount);
+            checkResponse(res2, successCount, failureCount);
 
-        checkResponse(res1, successCount, failureCount);
-        checkResponse(res2, successCount, failureCount);
+            assertEquals(1, successCount.get(), "Exactly one reservation should succeed");
+            assertEquals(1, failureCount.get(), "Exactly one reservation should fail");
 
-        assertEquals(1, successCount.get(), "Exactly one reservation should succeed");
-        assertEquals(1, failureCount.get(), "Exactly one reservation should fail");
+            // Verify remaining DB stock state balances accurately
+            Inventory finalInventory = inventoryRepository.findById("C300").orElseThrow();
+            assertEquals(4, finalInventory.getAvailableStock());
+            assertEquals(6, finalInventory.getReservedStock());
 
-        // Verify remaining DB stock state balances accurately
-        Inventory finalInventory = inventoryRepository.findById("C300").orElseThrow();
-        assertEquals(4, finalInventory.getAvailableStock());
-        assertEquals(6, finalInventory.getReservedStock());
+        } finally {
+            executor.shutdown();
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        }
     }
 
     private void checkResponse(ResponseEntity<ApiResponse> response, AtomicInteger success, AtomicInteger failure) {
         if (response.getStatusCode().is2xxSuccessful()) {
             success.incrementAndGet();
-        } else if (response.getStatusCode().is4xxClientError()) {
+        } else {
+            // Treats 4xx and any unhandled 5xx as failures
             failure.incrementAndGet();
         }
     }

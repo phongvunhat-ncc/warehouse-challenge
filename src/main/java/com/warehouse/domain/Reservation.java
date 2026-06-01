@@ -34,9 +34,9 @@ public class Reservation {
     @PostLoad
     protected void initInternalState() {
         switch (this.status) {
-            case PENDING -> this.state = new PendingState();
-            case CONFIRMED -> this.state = new ConfirmedState();
-            case CANCELLED -> this.state = new CancelledState();
+            case PENDING -> this.state = PendingState.INSTANCE;
+            case CONFIRMED -> this.state = ConfirmedState.INSTANCE;
+            case CANCELLED -> this.state = CancelledState.INSTANCE;
         }
     }
 

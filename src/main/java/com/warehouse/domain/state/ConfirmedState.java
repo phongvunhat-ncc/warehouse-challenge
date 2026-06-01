@@ -4,6 +4,9 @@ import com.warehouse.domain.Reservation;
 import com.warehouse.domain.ReservationStatus;
 
 public class ConfirmedState implements ReservationState {
+    public static final ConfirmedState INSTANCE = new ConfirmedState();
+
+    private ConfirmedState() {}
 
     @Override
     public void confirm(Reservation reservation) {

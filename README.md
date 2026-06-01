@@ -311,7 +311,24 @@ The `ReservationFactory` encapsulates the logic for initializing a fresh `Reserv
 
 ---
 
-## 6. Trade-offs & Improvements
+## 6. SOLID Principles Applied
+
+The following object-oriented principles are visible across the codebase:
+
+*   **Single Responsibility Principle (SRP):** 
+    Each element focuses strictly on one core concern. `ReservationMapper` transforms payloads between representations, `Reservation` entities evaluate invariant operations, and `ReservationController` translates transport commands.
+*   **Open/Closed Principle (OCP):** 
+    Extending systems behavior does not require altering established code. Introducing alternative states (such as `EXPIRED`) is accomplished by adding implementations of `ReservationState` without modifying the context class.
+*   **Liskov Substitution Principle (LSP):** 
+    Subclasses must be substitutable for their superclasses. `PendingState`, `ConfirmedState`, and `CancelledState` adhere to this contract; they implement the interface signature without breaking its semantic behavior.
+*   **Interface Segregation Principle (ISP):** 
+    The concrete repository `ReservationRepository` inherits from targeted, small JPA interfaces, preventing the application service layer from accessing internal database operations.
+*   **Dependency Inversion Principle (DIP):** 
+    High-level business coordinators depend strictly on abstract interface layers. `ReservationController` relies on `ReservationService`, which resolves to `ReservationServiceImpl` dynamically at runtime via Spring Dependency Injection.
+
+---
+
+## 7. Trade-offs & Improvements
 
 ### Concurrency Strategy: Pessimistic Locking (`PESSIMISTIC_WRITE`)
 To prevent overselling, the application locks matching `inventory` rows during reservation requests (`SELECT ... FOR UPDATE`).
@@ -329,7 +346,7 @@ To prevent overselling, the application locks matching `inventory` rows during r
 
 ---
 
-## 7. What Would Break at Scale & How to Fix It
+## 8. What Would Break at Scale & How to Fix It
 
 ### 1. Database Connection Pool Starvation (Hot SKU Contention)
 *   **The Problem:** 
@@ -351,7 +368,7 @@ To prevent overselling, the application locks matching `inventory` rows during r
 
 ---
 
-## 8. Running the System
+## 9. Running the System
 
 ### Prerequisites
 *   Docker and Docker Compose installed and running.
@@ -368,7 +385,7 @@ The system will start up, run the database migrations automatically, and begin l
 
 ---
 
-## 9. Running the Tests
+## 10. Running the Tests
 
 ### Unit Tests
 These tests run in isolation using Mockito, without launching a Spring Boot or database context:

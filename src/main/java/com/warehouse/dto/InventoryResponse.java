@@ -8,15 +8,6 @@ public class InventoryResponse {
     private Integer availableStock;
     private Integer reservedStock;
 
-    public static InventoryResponse fromDomain(Inventory inventory) {
-        InventoryResponse dto = new InventoryResponse();
-        dto.setSku(inventory.getSku());
-        dto.setTotalStock(inventory.getTotalStock());
-        dto.setAvailableStock(inventory.getAvailableStock());
-        dto.setReservedStock(inventory.getReservedStock());
-        return dto;
-    }
-
     // Getters and Setters
     public String getSku() { return sku; }
     public void setSku(String sku) { this.sku = sku; }

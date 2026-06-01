@@ -4,12 +4,12 @@ import com.warehouse.domain.*;
 import com.warehouse.exception.InsufficientStockException;
 import com.warehouse.repository.InventoryRepository;
 import com.warehouse.repository.ReservationRepository;
+import com.warehouse.domain.factory.ReservationFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,13 +21,15 @@ class ReservationServiceTest {
 
     private InventoryRepository inventoryRepository;
     private ReservationRepository reservationRepository;
-    private ReservationService reservationService;
+    private ReservationFactory reservationFactory;
+    private ReservationServiceImpl reservationServiceImpl;
 
     @BeforeEach
     void setUp() {
         inventoryRepository = Mockito.mock(InventoryRepository.class);
         reservationRepository = Mockito.mock(ReservationRepository.class);
-        reservationService = new ReservationService(inventoryRepository, reservationRepository);
+        reservationFactory = Mockito.mock(ReservationFactory.class);
+        reservationServiceImpl = new ReservationServiceImpl(inventoryRepository, reservationRepository, reservationFactory);
     }
 
     @Test
@@ -37,9 +39,14 @@ class ReservationServiceTest {
         ReservationItem requestedItem = new ReservationItem(sku, 5);
 
         when(inventoryRepository.findAllBySkuInWithLock(List.of(sku))).thenReturn(List.of(inventory));
+        
+        Reservation mockReservation = new Reservation();
+        mockReservation.setStatus(ReservationStatus.PENDING);
+        when(reservationFactory.createPendingReservation(eq("ORD-1001"), anyList())).thenReturn(mockReservation);
+        
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Reservation result = reservationService.createReservation("ORD-1001", List.of(requestedItem));
+        Reservation result = reservationServiceImpl.createReservation("ORD-1001", List.of(requestedItem));
 
         assertNotNull(result);
         assertEquals(ReservationStatus.PENDING, result.getStatus());
@@ -57,7 +64,7 @@ class ReservationServiceTest {
         when(inventoryRepository.findAllBySkuInWithLock(List.of(sku))).thenReturn(List.of(inventory));
 
         assertThrows(InsufficientStockException.class, () -> 
-            reservationService.createReservation("ORD-1001", List.of(requestedItem))
+            reservationServiceImpl.createReservation("ORD-1001", List.of(requestedItem))
         );
         verify(reservationRepository, never()).save(any());
     }
@@ -74,11 +81,11 @@ class ReservationServiceTest {
 
         Inventory inventory = new Inventory("A100", 100, 95, 5);
 
-        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByIdForUpdate(resId)).thenReturn(Optional.of(reservation));
         when(inventoryRepository.findAllBySkuInWithLock(List.of("A100"))).thenReturn(List.of(inventory));
         when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
-        Reservation result = reservationService.confirmReservation(resId);
+        Reservation result = reservationServiceImpl.confirmReservation(resId);
 
         assertEquals(ReservationStatus.CONFIRMED, result.getStatus());
         assertEquals(0, inventory.getReservedStock());
@@ -97,11 +104,11 @@ class ReservationServiceTest {
 
         Inventory inventory = new Inventory("A100", 100, 95, 5);
 
-        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByIdForUpdate(resId)).thenReturn(Optional.of(reservation));
         when(inventoryRepository.findAllBySkuInWithLock(List.of("A100"))).thenReturn(List.of(inventory));
         when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
-        Reservation result = reservationService.cancelReservation(resId);
+        Reservation result = reservationServiceImpl.cancelReservation(resId);
 
         assertEquals(ReservationStatus.CANCELLED, result.getStatus());
         assertEquals(0, inventory.getReservedStock());
@@ -115,8 +122,8 @@ class ReservationServiceTest {
         reservation.setId(resId);
         reservation.setStatus(ReservationStatus.CONFIRMED);
 
-        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByIdForUpdate(resId)).thenReturn(Optional.of(reservation));
 
-        assertThrows(IllegalStateException.class, () -> reservationService.confirmReservation(resId));
+        assertThrows(IllegalStateException.class, () -> reservationServiceImpl.confirmReservation(resId));
     }
 }

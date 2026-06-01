@@ -12,16 +12,6 @@ public class ReservationResponse {
     private LocalDateTime createdAt;
     private List<ItemResponse> items;
 
-    public static ReservationResponse fromDomain(Reservation res) {
-        ReservationResponse dto = new ReservationResponse();
-        dto.setId(res.getId());
-        dto.setOrderId(res.getOrderId());
-        dto.setStatus(res.getStatus());
-        dto.setCreatedAt(res.getCreatedAt());
-        dto.setItems(res.getItems().stream().map(ItemResponse::fromDomain).toList());
-        return dto;
-    }
-
     // Getters and Setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }

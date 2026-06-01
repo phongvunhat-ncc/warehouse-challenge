@@ -18,6 +18,9 @@ public class Inventory {
     @Column(name = "reserved_stock", nullable = false)
     private Integer reservedStock;
 
+    @Version
+    private Long version;
+
     public Inventory() {}
 
     public Inventory(String sku, Integer totalStock, Integer availableStock, Integer reservedStock) {
@@ -63,4 +66,5 @@ public class Inventory {
     public Integer getTotalStock() { return totalStock; }
     public Integer getAvailableStock() { return availableStock; }
     public Integer getReservedStock() { return reservedStock; }
+    public Long getVersion() { return version; }
 }
