@@ -16,6 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+    container_name: warehouse-migrate
+    command: >
+      --url=jdbc:postgresql://postgres:5432/warehouse_db
+      --username=postgres
+      --password=password
+      --changeLogFile=changelog/db.changelog-master.yaml
+      update
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
   app:
     build: .
     container_name: warehouse-service
@@ -28,3 +44,5 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
